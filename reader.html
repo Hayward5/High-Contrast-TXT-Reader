@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高對比智慧型小說閱讀器 (可跳轉版)</title>
+    <style>
+        :root {
+            /* Windows 高對比風格配色 */
+            --bg-color: #000000;       /* 純黑背景 */
+            --text-color: #FFFF00;     /* 亮黃文字 */
+            --ui-border: #00FF00;      /* 亮綠邊框 */
+            --ui-bg: #111111;          /* UI 深灰背景 */
+            --highlight: #00FF00;      /* 強調色 */
+            --font-size: 24px;
+            --line-height: 1.6;
+            --brightness: 1;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* 禁止整個頁面出現捲軸 */
+        }
+
+        /* --- 工具列 --- */
+        #toolbar {
+            background-color: var(--ui-bg);
+            border-bottom: 2px solid var(--ui-border);
+            padding: 10px 15px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            z-index: 20;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        label { 
+            font-size: 14px; 
+            color: #fff; 
+            font-weight: bold;
+        }
+
+        /* 按鈕樣式 - 高對比風格 */
+        button, .file-btn {
+            background: #000;
+            color: var(--ui-border);
+            border: 2px solid var(--ui-border);
+            padding: 6px 15px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: 0.1s;
+            text-transform: uppercase;
+        }
+
+        button:hover, .file-btn:hover {
+            background: var(--ui-border);
+            color: #000;
+        }
+
+        button:disabled {
+            border-color: #555;
+            color: #555;
+            cursor: not-allowed;
+            background: #000;
+        }
+
+        input[type="file"] { display: none; }
+        
+        /* 滑桿樣式 */
+        input[type="range"] {
+            width: 80px;
+            accent-color: var(--ui-border);
+            cursor: pointer;
+        }
+
+        /* --- 閱讀區域 (核心) --- */
+        #reader-wrapper {
+            flex: 1;
+            position: relative;
+            overflow: hidden; /* 隱藏溢出，只顯示算好的那一頁 */
+            width: 100%;
+            margin: 0 auto;
+            max-width: 1200px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #reader-content {
+            padding: 40px 60px; /* 閱讀文字邊距 */
+            font-size: var(--font-size);
+            line-height: var(--line-height);
+            opacity: var(--brightness);
+            white-space: pre-wrap; /* 保留原始換行 */
+            text-align: justify;
+            height: 100%; /* 充滿容器 */
+            overflow: hidden; 
+            word-break: break-all;
+        }
+
+        /* --- 搜尋面板 --- */
+        #search-panel {
+            position: absolute;
+            top: 0;
+            right: -350px; /* 預設隱藏 */
+            width: 350px;
+            height: 100%;
+            background: var(--ui-bg);
+            border-left: 2px solid var(--ui-border);
+            transition: right 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            z-index: 30;
+            box-shadow: -10px 0 20px rgba(0,0,0,0.9);
+        }
+
+        #search-panel.open { right: 0; }
+
+        .search-header {
+            padding: 15px;
+            border-bottom: 2px solid var(--ui-border);
+            display: flex;
+            gap: 5px;
+            background: #000;
+        }
+
+        #searchInput {
+            flex: 1;
+            background: #000;
+            border: 1px solid var(--ui-border);
+            color: #fff;
+            padding: 8px;
+            font-size: 14px;
+            outline: none;
+        }
+        
+        #searchInput:focus {
+            background: #222;
+        }
+
+        #search-results {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            background: #000;
+        }
+
+        /* 搜尋結果捲軸樣式 */
+        #search-results::-webkit-scrollbar {
+            width: 8px;
+        }
+        #search-results::-webkit-scrollbar-track {
+            background: #000;
+        }
+        #search-results::-webkit-scrollbar-thumb {
+            background: var(--ui-border);
+        }
+
+        .result-item {
+            padding: 12px;
+            border-bottom: 1px solid #333;
+            cursor: pointer;
+            font-size: 14px;
+            color: #aaa;
+            line-height: 1.4;
+        }
+        .result-item:hover { 
+            background: var(--ui-border); 
+            color: #000; 
+        }
+        .result-item:hover .result-highlight {
+            color: #000; /* 反白時高亮字變黑 */
+            text-decoration: underline;
+        }
+        .result-highlight { 
+            color: var(--ui-border); 
+            font-weight: bold; 
+            font-size: 1.1em;
+        }
+
+        /* --- 狀態列 --- */
+        #statusbar {
+            background-color: var(--ui-bg);
+            border-top: 1px solid #333;
+            padding: 5px 15px;
+            font-size: 13px;
+            color: #888;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            font-family: monospace;
+        }
+
+        /* 進度輸入框樣式 */
+        .progress-control {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        #progress-input {
+            background: transparent;
+            color: var(--text-color);
+            border: 1px solid #444;
+            border-radius: 4px;
+            width: 60px;
+            text-align: right;
+            font-family: monospace;
+            font-size: 13px;
+            padding: 2px 4px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        #progress-input:focus {
+            border-color: var(--ui-border);
+            background: #222;
+        }
+        
+        /* 移除 number input 的箭頭 (Chrome, Safari, Edge, Opera) */
+        input[type=number]::-webkit-outer-spin-button,
+        input[type=number]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        /* Firefox */
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        /* --- 響應式調整 --- */
+        @media (max-width: 768px) {
+            #reader-content { padding: 20px 20px; }
+            #toolbar { gap: 8px; padding: 8px; justify-content: center; }
+            .control-group { gap: 5px; }
+            label span { display: none; } /* 手機隱藏標籤文字 */
+            #search-panel { width: 100%; right: -100%; border-left: none; }
+            
+            /* 手機版按鈕稍小 */
+            button, .file-btn { padding: 4px 8px; font-size: 12px; }
+            
+            /* 手機版隱藏非必要資訊 */
+            #char-info { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 工具列 -->
+    <div id="toolbar">
+        <div class="control-group">
+            <label class="file-btn">
+                開啟檔案
+                <input type="file" id="fileInput" accept=".txt">
+            </label>
+            <span id="fileNameDisplay" style="font-size: 12px; color: var(--ui-border); max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">未選擇</span>
+        </div>
+
+        <div class="control-group">
+            <button onclick="saveManualBookmark()" title="儲存當前書籤">存書籤</button>
+            <button onclick="loadManualBookmark()" title="讀取已存書籤">讀書籤</button>
+        </div>
+
+        <div class="control-group">
+            <label title="字體大小">A<input type="range" id="fontSizeRange" min="14" max="50" value="24" oninput="updateStyle()"></label>
+            <label title="亮度調整">☀<input type="range" id="brightnessRange" min="0.2" max="1" step="0.1" value="1" oninput="updateStyle()"></label>
+        </div>
+
+        <div class="control-group">
+            <button onclick="toggleSearch()" title="搜尋關鍵字">🔍</button>
+            <button id="prevBtn" onclick="turnPage(-1)">◀</button>
+            <button id="nextBtn" onclick="turnPage(1)">▶</button>
+        </div>
+    </div>
+
+    <!-- 閱讀區 -->
+    <div id="reader-wrapper">
+        <div id="reader-content">
+            <div style="margin-top: 10vh; text-align: center; color: #888;">
+                <h2 style="color: var(--ui-border);">高對比 TXT 閱讀器</h2>
+                <p>請點選左上角「開啟檔案」載入小說</p>
+                <hr style="border: 1px solid #333; width: 50%;">
+                <ul style="text-align: left; display: inline-block;">
+                    <li><b>自適應排版</b>：無須上下捲動，視窗多大字就多少</li>
+                    <li><b>進度跳轉</b>：可直接修改左下角百分比數字</li>
+                    <li><b>自動記憶</b>：關閉後再開，自動回到上次段落</li>
+                    <li><b>手動書籤</b>：可儲存特定頁面</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 搜尋側邊欄 -->
+        <div id="search-panel">
+            <div class="search-header">
+                <input type="text" id="searchInput" placeholder="輸入關鍵字..." onkeydown="if(event.key==='Enter') performSearch()">
+                <button onclick="performSearch()">搜尋</button>
+                <button onclick="toggleSearch()">✕</button>
+            </div>
+            <div id="search-results">
+                <div style="text-align:center; padding:20px; color:#666;">請輸入關鍵字並按下搜尋</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 狀態列 -->
+    <div id="statusbar">
+        <div class="progress-control" title="點擊輸入數字可跳轉">
+            <input type="number" id="progress-input" value="0.00" min="0" max="100" step="0.01">
+            <span>%</span>
+        </div>
+        <span id="char-info">字元位置: 0 / 0</span>
+    </div>
+
+    <script>
+        // --- 核心變數 ---
+        let fullText = "";
+        let currentIndex = 0; // 當前頁面第一個字在全文中的索引
+        let currentFileName = "";
+        let pageHistory = []; // 用於紀錄上一頁的位置 (因為每頁字數不固定)
+        
+        // --- DOM 元素 ---
+        const readerContent = document.getElementById('reader-content');
+        const fileInput = document.getElementById('fileInput');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const progressInput = document.getElementById('progress-input'); // 改為 Input
+        const charInfo = document.getElementById('char-info');
+        const searchPanel = document.getElementById('search-panel');
+        const searchInput = document.getElementById('searchInput');
+        const searchResults = document.getElementById('search-results');
+
+        // --- 1. 檔案讀取與初始化 ---
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            currentFileName = file.name;
+            fileNameDisplay.textContent = file.name;
+            fileNameDisplay.title = file.name;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                fullText = e.target.result;
+                // 統一換行符號
+                fullText = fullText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\t/g, '    ');
+                
+                // 優先嘗試讀取「自動記憶」的進度
+                loadAutoProgress();
+                
+                // 首次渲染
+                renderCurrentPage();
+            };
+            reader.readAsText(file);
+        });
+
+        // --- 2. 核心翻頁邏輯 (Adaptive Layout) ---
+        function renderCurrentPage() {
+            if (!fullText) return;
+
+            // 清空內容
+            readerContent.innerHTML = "";
+            
+            // 使用二分搜尋法 (Binary Search)
+            const tempSpan = document.createElement('span');
+            readerContent.appendChild(tempSpan);
+            
+            const maxCharsToCheck = 4000;
+            const remainingTextLen = fullText.length - currentIndex;
+            const limit = Math.min(remainingTextLen, maxCharsToCheck);
+            
+            let low = 0;
+            let high = limit;
+            let fitIndex = 0;
+            
+            const maxHeight = readerContent.clientHeight;
+
+            while (low <= high) {
+                const mid = Math.floor((low + high) / 2);
+                tempSpan.textContent = fullText.substr(currentIndex, mid);
+                
+                if (readerContent.scrollHeight > maxHeight) {
+                    high = mid - 1;
+                } else {
+                    fitIndex = mid;
+                    low = mid + 1;
+                }
+            }
+
+            // --- 智慧斷句優化 ---
+            if (currentIndex + fitIndex < fullText.length) {
+                const buffer = Math.min(fitIndex, 60);
+                const rawSub = fullText.substr(currentIndex, fitIndex);
+                
+                let lastBreak = rawSub.lastIndexOf('\n');
+                
+                if (lastBreak === -1 || lastBreak < fitIndex - buffer) {
+                     const lastPunctuation = Math.max(
+                        rawSub.lastIndexOf('。'),
+                        rawSub.lastIndexOf('！'), 
+                        rawSub.lastIndexOf('？'),
+                        rawSub.lastIndexOf('”'),
+                        rawSub.lastIndexOf('」')
+                    );
+                    if (lastPunctuation > fitIndex - buffer) {
+                        lastBreak = lastPunctuation;
+                    }
+                }
+
+                if (lastBreak > fitIndex - buffer) {
+                    fitIndex = lastBreak + 1;
+                }
+            }
+
+            if (fitIndex === 0 && remainingTextLen > 0) fitIndex = 1;
+
+            // 正式渲染
+            const pageText = fullText.substr(currentIndex, fitIndex);
+            readerContent.textContent = pageText;
+            
+            // 更新狀態
+            updateStatus(fitIndex);
+            
+            // 自動記憶
+            saveAutoProgress();
+            
+            readerContent.dataset.charsOnPage = fitIndex;
+        }
+
+        function updateStatus(charsOnPage) {
+            const total = fullText.length;
+            // 計算百分比
+            let percent = 0;
+            if (total > 0) {
+                percent = ((currentIndex + charsOnPage) / total * 100).toFixed(2);
+            }
+            
+            // 更新 Input 的值，而不是 span 的文字
+            progressInput.value = percent;
+            
+            charInfo.textContent = `字元位置: ${currentIndex} / ${total}`;
+            
+            document.getElementById('prevBtn').disabled = (currentIndex === 0);
+            document.getElementById('nextBtn').disabled = (currentIndex + charsOnPage >= total);
+        }
+
+        // --- 百分比跳轉邏輯 ---
+        progressInput.addEventListener('change', function() {
+            if (!fullText) {
+                this.value = "0.00";
+                return;
+            }
+            
+            let val = parseFloat(this.value);
+            if (isNaN(val)) val = 0;
+            if (val < 0) val = 0;
+            if (val > 100) val = 100;
+            
+            // 計算新的 Index
+            const newIndex = Math.floor((val / 100) * fullText.length);
+            
+            // 修正邊界
+            currentIndex = newIndex;
+            if (currentIndex >= fullText.length) currentIndex = Math.max(0, fullText.length - 100); // 避免完全溢出
+            
+            // 因為是直接跳轉，清空歷史紀錄
+            pageHistory = [];
+            
+            renderCurrentPage();
+            // 讓焦點離開 input，方便繼續用鍵盤翻頁
+            this.blur(); 
+        });
+
+        // 也可以監聽 Enter 鍵 (雖然 change 在 enter 時通常也會觸發，但這樣更保險)
+        progressInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                this.blur(); // 觸發 change 事件
+            }
+        });
+
+        function turnPage(direction) {
+            if (!fullText) return;
+
+            if (direction === 1) {
+                const charsOnPage = parseInt(readerContent.dataset.charsOnPage || 0);
+                if (currentIndex + charsOnPage >= fullText.length) return;
+
+                pageHistory.push(currentIndex);
+                currentIndex += charsOnPage;
+                renderCurrentPage();
+
+            } else if (direction === -1) {
+                if (pageHistory.length > 0) {
+                    currentIndex = pageHistory.pop();
+                    renderCurrentPage();
+                } else if (currentIndex > 0) {
+                    // 估算回退
+                    const approximateChars = Math.floor((readerContent.clientWidth * readerContent.clientHeight) / (parseInt(getComputedStyle(readerContent).fontSize) ** 2));
+                    let targetIndex = Math.max(0, currentIndex - Math.floor(approximateChars * 0.8));
+                    
+                    currentIndex = targetIndex;
+                    pageHistory = []; 
+                    renderCurrentPage();
+                }
+            }
+        }
+
+        // --- 3. 記憶與書籤系統 ---
+        
+        function saveAutoProgress() {
+            if (currentFileName) {
+                localStorage.setItem('txt_auto_' + currentFileName, currentIndex);
+            }
+        }
+
+        function loadAutoProgress() {
+            if (currentFileName) {
+                const savedIdx = localStorage.getItem('txt_auto_' + currentFileName);
+                if (savedIdx !== null) {
+                    const idx = parseInt(savedIdx);
+                    if (idx < fullText.length) {
+                        currentIndex = idx;
+                        pageHistory = []; 
+                    }
+                }
+            }
+        }
+
+        function saveManualBookmark() {
+            if (!currentFileName) {
+                alert("請先開啟檔案");
+                return;
+            }
+            localStorage.setItem('txt_manual_' + currentFileName, currentIndex);
+            alert(`✅ 書籤已儲存！\n位置索引: ${currentIndex}\n進度: ${progressInput.value}%`);
+        }
+
+        function loadManualBookmark() {
+            if (!currentFileName) {
+                alert("請先開啟檔案");
+                return;
+            }
+            const savedIdx = localStorage.getItem('txt_manual_' + currentFileName);
+            if (savedIdx !== null) {
+                const idx = parseInt(savedIdx);
+                if (confirm(`找到手動書籤 (位置: ${idx})，確定要跳轉嗎？`)) {
+                    currentIndex = idx;
+                    pageHistory = [];
+                    renderCurrentPage();
+                }
+            } else {
+                alert("此檔案尚未建立手動書籤。");
+            }
+        }
+
+        // --- 4. 全文搜尋功能 ---
+        function toggleSearch() {
+            searchPanel.classList.toggle('open');
+            if (searchPanel.classList.contains('open')) {
+                searchInput.focus();
+                searchInput.select();
+            }
+        }
+
+        function performSearch() {
+            const keyword = searchInput.value.trim();
+            if (!keyword) return;
+            if (!fullText) {
+                alert("請先開啟檔案");
+                return;
+            }
+
+            searchResults.innerHTML = '<div style="padding:10px; color:#888;">搜尋中...</div>';
+            
+            setTimeout(() => {
+                const results = [];
+                let pos = fullText.indexOf(keyword);
+                let count = 0;
+                const maxResults = 100;
+                
+                while (pos !== -1 && count < maxResults) {
+                    const start = Math.max(0, pos - 15);
+                    const end = Math.min(fullText.length, pos + keyword.length + 20);
+                    let snippet = fullText.substring(start, end);
+                    
+                    const highlightedSnippet = snippet.split(keyword).join(`<span class="result-highlight">${keyword}</span>`);
+                    
+                    results.push({ index: pos, snippet: highlightedSnippet });
+                    
+                    pos = fullText.indexOf(keyword, pos + 1);
+                    count++;
+                }
+
+                displayResults(results, keyword);
+            }, 50);
+        }
+
+        function displayResults(results, keyword) {
+            searchResults.innerHTML = '';
+            
+            if (results.length === 0) {
+                searchResults.innerHTML = `<div style="padding:10px;">找不到 "${keyword}"</div>`;
+                return;
+            }
+
+            const infoDiv = document.createElement('div');
+            infoDiv.style.padding = "10px";
+            infoDiv.style.color = "#888";
+            infoDiv.style.fontSize = "12px";
+            infoDiv.textContent = `顯示前 ${results.length} 筆結果：`;
+            searchResults.appendChild(infoDiv);
+
+            results.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'result-item';
+                div.innerHTML = `...${item.snippet}... <br><span style="color:#555; font-size:12px;">位置: ${item.index}</span>`;
+                div.onclick = () => {
+                    currentIndex = item.index;
+                    pageHistory = [];
+                    renderCurrentPage();
+                    if (window.innerWidth < 768) {
+                        toggleSearch();
+                    }
+                };
+                searchResults.appendChild(div);
+            });
+        }
+
+        // --- 5. 視窗調整與樣式控制 ---
+        function updateStyle() {
+            const fontSize = document.getElementById('fontSizeRange').value;
+            const brightness = document.getElementById('brightnessRange').value;
+            
+            document.documentElement.style.setProperty('--font-size', fontSize + 'px');
+            document.documentElement.style.setProperty('--brightness', brightness);
+            
+            renderCurrentPage();
+        }
+
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                renderCurrentPage();
+            }, 100);
+        });
+
+        // 鍵盤控制監聽
+        document.addEventListener('keydown', function(e) {
+            // 如果搜尋欄打開且焦點在輸入框，不觸發翻頁
+            const active = document.activeElement;
+            if (searchPanel.classList.contains('open') && active === searchInput) {
+                return;
+            }
+            // 如果正在輸入百分比，不觸發翻頁
+            if (active === progressInput) {
+                return;
+            }
+
+            if (e.key === 'ArrowLeft') {
+                turnPage(-1);
+            } else if (e.key === 'ArrowRight' || e.key === ' ') {
+                e.preventDefault(); 
+                turnPage(1);
+            }
+        });
+
+        // 初始化
+        updateStyle();
+
+    </script>
+</body>
+</html>
