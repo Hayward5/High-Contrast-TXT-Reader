@@ -659,7 +659,12 @@
             const keyword = searchInput.value.trim();
             if (!keyword || !fullText) return;
 
-            searchResults.innerHTML = '<div style="padding:10px; color:#888;">搜尋中...</div>';
+            searchResults.innerHTML = '';
+            const searchingDiv = document.createElement('div');
+            searchingDiv.style.padding = '10px';
+            searchingDiv.style.color = '#888';
+            searchingDiv.textContent = '搜尋中...';
+            searchResults.appendChild(searchingDiv);
             
             setTimeout(() => {
                 const results = [];
@@ -670,8 +675,7 @@
                     const start = Math.max(0, pos - 15);
                     const end = Math.min(fullText.length, pos + keyword.length + 20);
                     let snippet = fullText.substring(start, end);
-                    const highlightedSnippet = snippet.split(keyword).join(`<span class="result-highlight">${keyword}</span>`);
-                    results.push({ index: pos, snippet: highlightedSnippet });
+                    results.push({ index: pos, snippet: snippet, keyword: keyword });
                     pos = fullText.indexOf(keyword, pos + 1);
                     count++;
                 }
@@ -682,7 +686,10 @@
         function displayResults(results, keyword) {
             searchResults.innerHTML = '';
             if (results.length === 0) {
-                searchResults.innerHTML = `<div style="padding:10px;">找不到 "${keyword}"</div>`;
+                const noResultDiv = document.createElement('div');
+                noResultDiv.style.padding = '10px';
+                noResultDiv.textContent = `找不到 "${keyword}"`;
+                searchResults.appendChild(noResultDiv);
                 return;
             }
 
@@ -696,7 +703,36 @@
             results.forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'result-item';
-                div.innerHTML = `...${item.snippet}... <br><span style="color:#555; font-size:12px;">位置: ${item.index}</span>`;
+
+                // 添加前綴
+                const prefix = document.createTextNode('...');
+                div.appendChild(prefix);
+
+                // 分割並高亮關鍵字
+                const parts = item.snippet.split(item.keyword);
+                for (let i = 0; i < parts.length; i++) {
+                    div.appendChild(document.createTextNode(parts[i]));
+                    if (i < parts.length - 1) {
+                        const highlight = document.createElement('span');
+                        highlight.className = 'result-highlight';
+                        highlight.textContent = item.keyword;
+                        div.appendChild(highlight);
+                    }
+                }
+
+                // 添加後綴
+                const suffix = document.createTextNode('...');
+                div.appendChild(suffix);
+
+                // 添加換行和位置
+                const br = document.createElement('br');
+                div.appendChild(br);
+                const posSpan = document.createElement('span');
+                posSpan.style.color = '#555';
+                posSpan.style.fontSize = '12px';
+                posSpan.textContent = `位置: ${item.index}`;
+                div.appendChild(posSpan);
+
                 div.onclick = () => {
                     stopTTS(); // 搜尋跳轉停止朗讀
                     currentIndex = item.index;
