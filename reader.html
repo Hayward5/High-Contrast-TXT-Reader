@@ -29,9 +29,11 @@
             color: var(--text-color);
             font-family: "Microsoft JhengHei", "Noto Sans TC", sans-serif;
             height: 100vh;
+            height: 100dvh;
             display: flex;
             flex-direction: column;
             overflow: hidden; /* 禁止整個頁面出現捲軸 */
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
         }
 
         /* --- 工具列 --- */
@@ -135,6 +137,19 @@
             overflow: hidden; 
             word-break: break-all;
         }
+        body[data-theme="dark"] { --bg-color:#121212; --text-color:#eee; --ui-border:#72d572; --ui-bg:#202020; }
+        body[data-theme="paper"] { --bg-color:#f4ecd8; --text-color:#352f25; --ui-border:#765b35; --ui-bg:#e5d8bd; }
+        body[data-theme="light"] { --bg-color:#fff; --text-color:#171717; --ui-border:#2459a6; --ui-bg:#eee; }
+        body[data-mode="scroll"] #reader-wrapper { overflow-y:auto; }
+        body[data-mode="scroll"] #reader-content { height:auto; min-height:100%; overflow:visible; text-align:left; }
+        body[data-mode="scroll"] #prevBtn, body[data-mode="scroll"] #nextBtn { display:none; }
+        :focus-visible { outline:3px solid #fff; outline-offset:2px; }
+        #settings-panel { display:none; padding:8px 15px; background:var(--ui-bg); border-bottom:1px solid var(--ui-border); gap:12px; flex-wrap:wrap; align-items:center; }
+        #settings-panel.open { display:flex; }
+        #toolbar.hidden { display:none; }
+        select { background:var(--bg-color); color:var(--text-color); border:1px solid var(--ui-border); padding:5px; }
+        #announcement { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
 
         /* --- 搜尋面板 --- */
         #search-panel {
@@ -280,7 +295,7 @@
 <body>
 
     <!-- 工具列 -->
-    <div id="toolbar">
+    <header id="toolbar" aria-label="閱讀工具列">
         <div class="control-group">
             <label class="file-btn">
                 開啟
@@ -290,8 +305,8 @@
         </div>
 
         <div class="control-group">
-            <button onclick="saveManualBookmark()" title="儲存書籤">存</button>
-            <button onclick="loadManualBookmark()" title="讀取書籤">讀</button>
+            <button onclick="saveManualBookmark()" title="儲存書籤" aria-label="儲存書籤">存</button>
+            <button onclick="loadManualBookmark()" title="讀取書籤" aria-label="讀取最近書籤">讀</button>
         </div>
         
         <div class="control-group">
@@ -305,14 +320,23 @@
         </div>
 
         <div class="control-group">
-            <button onclick="toggleSearch()" title="搜尋">🔍</button>
-            <button id="prevBtn" onclick="manualTurnPage(-1)">◀</button>
-            <button id="nextBtn" onclick="manualTurnPage(1)">▶</button>
+            <button onclick="toggleSearch()" title="搜尋" aria-label="搜尋全文">🔍</button>
+            <button onclick="toggleSettings()" title="閱讀設定" aria-label="開啟閱讀設定">⚙</button>
+            <button id="prevBtn" onclick="manualTurnPage(-1)" aria-label="上一頁">◀</button>
+            <button id="nextBtn" onclick="manualTurnPage(1)" aria-label="下一頁">▶</button>
         </div>
-    </div>
+    </header>
+    <section id="settings-panel" aria-label="閱讀設定">
+        <label>編碼 <select id="encodingSelect"><option value="utf-8">UTF-8</option><option value="big5">Big5</option><option value="gb18030">GB18030</option><option value="utf-16le">UTF-16 LE</option><option value="utf-16be">UTF-16 BE</option></select></label>
+        <label>主題 <select id="themeSelect"><option value="contrast">高對比</option><option value="dark">深色</option><option value="paper">紙張</option><option value="light">亮色</option></select></label>
+        <label>模式 <select id="modeSelect"><option value="page">分頁</option><option value="scroll">捲動</option></select></label>
+        <label>行距 <select id="lineHeightSelect"><option>1.4</option><option selected>1.6</option><option>1.8</option><option>2</option></select></label>
+        <label>語速 <input type="range" id="rateRange" min="0.5" max="2" step="0.1" value="1"></label>
+    </section>
+    <div id="announcement" aria-live="polite"></div>
 
     <!-- 閱讀區 -->
-    <div id="reader-wrapper">
+    <main id="reader-wrapper">
         <div id="reader-content">
             <div style="margin-top: 10vh; text-align: center; color: #888;">
                 <h2 style="color: var(--ui-border);">高對比 TXT 閱讀器</h2>
@@ -338,7 +362,7 @@
                 <div style="text-align:center; padding:20px; color:#666;">請輸入關鍵字並按下搜尋</div>
             </div>
         </div>
-    </div>
+    </main>
 
     <!-- 狀態列 -->
     <div id="statusbar">
@@ -355,6 +379,9 @@
         let currentIndex = 0;
         let currentFileName = "";
         let pageHistory = [];
+        let fileLoadGeneration = 0;
+        let currentFileBuffer = null;
+        let currentBookId = "";
         
         // --- TTS 相關變數 ---
         let isTTSActive = false;
@@ -372,6 +399,65 @@
         const searchInput = document.getElementById('searchInput');
         const searchResults = document.getElementById('search-results');
         const ttsBtn = document.getElementById('ttsBtn');
+        const announcement = document.getElementById('announcement');
+        const settingsPanel = document.getElementById('settings-panel');
+        const encodingSelect = document.getElementById('encodingSelect');
+
+        function announce(message) { announcement.textContent = message; }
+        function toggleSettings() { settingsPanel.classList.toggle('open'); }
+
+        async function createBookId(file, buffer) {
+            if (window.crypto?.subtle) {
+                const digest = await window.crypto.subtle.digest('SHA-256', buffer);
+                return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+            }
+            return `${file.name}:${file.size}:${file.lastModified}`;
+        }
+
+        function decodeCurrentFile() {
+            if (!currentFileBuffer) return '';
+            try { return new TextDecoder(encodingSelect.value, { fatal:false }).decode(currentFileBuffer); }
+            catch { return new TextDecoder('utf-8').decode(currentFileBuffer); }
+        }
+
+        function progressStorageKey() { return `txt_reader_v2_${currentBookId || currentFileName}`; }
+
+        function resetReadingState() {
+            currentIndex = 0;
+            pageHistory = [];
+            readerContent.dataset.charsOnPage = '0';
+        }
+
+        function normalizeCurrentIndex() {
+            if (!fullText.length) {
+                currentIndex = 0;
+                return;
+            }
+
+            const parsedIndex = Number.parseInt(currentIndex, 10);
+            currentIndex = Number.isFinite(parsedIndex)
+                ? Math.min(Math.max(parsedIndex, 0), fullText.length - 1)
+                : 0;
+        }
+
+        function showReaderMessage(title, message) {
+            readerContent.replaceChildren();
+
+            const container = document.createElement('div');
+            container.style.marginTop = '10vh';
+            container.style.textAlign = 'center';
+            container.style.color = '#888';
+
+            const heading = document.createElement('h2');
+            heading.style.color = 'var(--ui-border)';
+            heading.textContent = title;
+
+            const description = document.createElement('p');
+            description.textContent = message;
+
+            container.append(heading, description);
+            readerContent.appendChild(container);
+        }
 
         // --- 1. 初始化與檔案讀取 ---
         
@@ -394,20 +480,58 @@
 
             stopTTS(); // 換檔案時停止朗讀
 
+            const loadGeneration = ++fileLoadGeneration;
+            fullText = "";
+            resetReadingState();
+
             currentFileName = file.name;
             fileNameDisplay.textContent = file.name;
             fileNameDisplay.title = file.name;
+            showReaderMessage('載入中…', `正在開啟「${file.name}」`);
+            updateStatus(0);
 
             const reader = new FileReader();
-            reader.onload = function(e) {
-                fullText = e.target.result;
+            reader.onload = async function(e) {
+                // 使用者可能在檔案仍在讀取時又選擇另一本書。
+                if (loadGeneration !== fileLoadGeneration) return;
+
+                currentFileBuffer = e.target.result;
+                currentBookId = await createBookId(file, currentFileBuffer);
+                if (loadGeneration !== fileLoadGeneration) return;
+                fullText = decodeCurrentFile();
                 // 統一換行符號
                 fullText = fullText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\t/g, '    ');
-                
+
+                resetReadingState();
+                if (!fullText.length) {
+                    showReaderMessage('空白檔案', '這個 TXT 檔案沒有可供閱讀的內容。');
+                    updateStatus(0);
+                    return;
+                }
+
                 loadAutoProgress();
+                normalizeCurrentIndex();
                 renderCurrentPage();
             };
-            reader.readAsText(file);
+            reader.onerror = function() {
+                if (loadGeneration !== fileLoadGeneration) return;
+
+                fullText = "";
+                resetReadingState();
+                showReaderMessage('無法開啟檔案', '讀取 TXT 檔案時發生錯誤，請重新選擇檔案。');
+                updateStatus(0);
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        encodingSelect.addEventListener('change', () => {
+            if (!currentFileBuffer) return;
+            const oldPercent = fullText.length ? currentIndex / fullText.length : 0;
+            fullText = decodeCurrentFile().replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\t/g, '    ');
+            currentIndex = Math.floor(oldPercent * fullText.length);
+            pageHistory = [];
+            renderCurrentPage();
+            announce(`已切換為 ${encodingSelect.options[encodingSelect.selectedIndex].text} 編碼`);
         });
 
         // --- 2. TTS 朗讀邏輯 ---
@@ -453,7 +577,7 @@
 
             ttsUtterance = new SpeechSynthesisUtterance(textToRead);
             if (ttsVoice) ttsUtterance.voice = ttsVoice;
-            ttsUtterance.rate = 1; // 語速
+            ttsUtterance.rate = Number(document.getElementById('rateRange').value); // 語速
             ttsUtterance.pitch = 1; // 音調
 
             // 當本頁讀完時的事件
@@ -489,6 +613,16 @@
 
         function renderCurrentPage() {
             if (!fullText) return;
+
+            normalizeCurrentIndex();
+
+            if (document.body.dataset.mode === 'scroll') {
+                readerContent.textContent = fullText;
+                readerContent.dataset.charsOnPage = fullText.length;
+                updateStatus(fullText.length - currentIndex);
+                saveAutoProgress();
+                return;
+            }
 
             readerContent.innerHTML = "";
             
@@ -545,13 +679,16 @@
 
         function updateStatus(charsOnPage) {
             const total = fullText.length;
+            const safeCharsOnPage = Number.isFinite(Number(charsOnPage))
+                ? Math.max(0, Number(charsOnPage))
+                : 0;
             let percent = 0;
-            if (total > 0) percent = ((currentIndex + charsOnPage) / total * 100).toFixed(2);
+            if (total > 0) percent = ((currentIndex + safeCharsOnPage) / total * 100).toFixed(2);
             progressInput.value = percent;
             charInfo.textContent = `字元: ${currentIndex} / ${total}`;
             
             document.getElementById('prevBtn').disabled = (currentIndex === 0);
-            document.getElementById('nextBtn').disabled = (currentIndex + charsOnPage >= total);
+            document.getElementById('nextBtn').disabled = (currentIndex + safeCharsOnPage >= total);
         }
 
         // 手動翻頁 (會停止 TTS)
@@ -599,7 +736,7 @@
             
             const newIndex = Math.floor((val / 100) * fullText.length);
             currentIndex = newIndex;
-            if (currentIndex >= fullText.length) currentIndex = Math.max(0, fullText.length - 100);
+            normalizeCurrentIndex();
             
             pageHistory = [];
             renderCurrentPage();
@@ -611,29 +748,32 @@
         });
 
         function saveAutoProgress() {
-            if (currentFileName) localStorage.setItem('txt_auto_' + currentFileName, currentIndex);
+            if (currentFileName) localStorage.setItem(progressStorageKey(), JSON.stringify({ version:2, bookId:currentBookId, fileName:currentFileName, position:currentIndex, updatedAt:new Date().toISOString() }));
         }
 
         function loadAutoProgress() {
             if (currentFileName) {
-                const savedIdx = localStorage.getItem('txt_auto_' + currentFileName);
-                if (savedIdx !== null) {
-                    const idx = parseInt(savedIdx);
-                    if (idx < fullText.length) { currentIndex = idx; pageHistory = []; }
+                const saved = localStorage.getItem(progressStorageKey());
+                const legacy = localStorage.getItem('txt_auto_' + currentFileName);
+                if (saved !== null || legacy !== null) {
+                    try { currentIndex = saved !== null ? JSON.parse(saved).position : Number.parseInt(legacy, 10); }
+                    catch { currentIndex = 0; }
+                    normalizeCurrentIndex();
+                    pageHistory = [];
                 }
             }
         }
 
         function saveManualBookmark() {
             if (!currentFileName) { alert("請先開啟檔案"); return; }
-            localStorage.setItem('txt_manual_' + currentFileName, currentIndex);
+            localStorage.setItem('txt_manual_' + progressStorageKey(), currentIndex);
             alert(`✅ 書籤已儲存！進度: ${progressInput.value}%`);
         }
 
         function loadManualBookmark() {
             stopTTS(); // 讀取書籤停止朗讀
             if (!currentFileName) { alert("請先開啟檔案"); return; }
-            const savedIdx = localStorage.getItem('txt_manual_' + currentFileName);
+            const savedIdx = localStorage.getItem('txt_manual_' + progressStorageKey()) ?? localStorage.getItem('txt_manual_' + currentFileName);
             if (savedIdx !== null) {
                 const idx = parseInt(savedIdx);
                 if (confirm(`找到書籤 (位置: ${idx})，跳轉？`)) {
@@ -752,6 +892,43 @@
             document.documentElement.style.setProperty('--brightness', brightness);
             renderCurrentPage();
         }
+
+        function applyPreferences() {
+            document.body.dataset.theme = document.getElementById('themeSelect').value;
+            document.body.dataset.mode = document.getElementById('modeSelect').value;
+            document.documentElement.style.setProperty('--line-height', document.getElementById('lineHeightSelect').value);
+            localStorage.setItem('txt_reader_preferences', JSON.stringify({ theme:document.body.dataset.theme, mode:document.body.dataset.mode, lineHeight:document.getElementById('lineHeightSelect').value, fontSize:document.getElementById('fontSizeRange').value, rate:document.getElementById('rateRange').value }));
+            pageHistory = [];
+            renderCurrentPage();
+        }
+
+        ['themeSelect','modeSelect','lineHeightSelect'].forEach(id => document.getElementById(id).addEventListener('change', applyPreferences));
+        document.getElementById('rateRange').addEventListener('change', applyPreferences);
+        try {
+            const prefs = JSON.parse(localStorage.getItem('txt_reader_preferences') || '{}');
+            if (prefs.theme) document.getElementById('themeSelect').value = prefs.theme;
+            if (prefs.mode) document.getElementById('modeSelect').value = prefs.mode;
+            if (prefs.lineHeight) document.getElementById('lineHeightSelect').value = prefs.lineHeight;
+            if (prefs.fontSize) document.getElementById('fontSizeRange').value = prefs.fontSize;
+            if (prefs.rate) document.getElementById('rateRange').value = prefs.rate;
+        } catch {}
+        document.body.dataset.theme = document.getElementById('themeSelect').value;
+        document.body.dataset.mode = document.getElementById('modeSelect').value;
+        document.documentElement.style.setProperty('--line-height', document.getElementById('lineHeightSelect').value);
+
+        let pointerStart = null;
+        readerContent.addEventListener('pointerdown', e => { pointerStart = { x:e.clientX, y:e.clientY }; });
+        readerContent.addEventListener('pointerup', e => {
+            if (!pointerStart || window.getSelection()?.toString()) return;
+            const dx = e.clientX - pointerStart.x;
+            const dy = e.clientY - pointerStart.y;
+            pointerStart = null;
+            if (document.body.dataset.mode !== 'page' || Math.abs(dy) > Math.abs(dx)) return;
+            if (Math.abs(dx) > 50) manualTurnPage(dx < 0 ? 1 : -1);
+            else if (e.clientX < window.innerWidth * .3) manualTurnPage(-1);
+            else if (e.clientX > window.innerWidth * .7) manualTurnPage(1);
+            else document.getElementById('toolbar').classList.toggle('hidden');
+        });
 
         let resizeTimeout;
         window.addEventListener('resize', () => {

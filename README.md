@@ -1,75 +1,98 @@
-# HC-TXT-Reader (High Contrast TXT Reader)
+# HC-TXT-Reader（高對比 TXT 小說閱讀器）
 
-[English](#english) | [中文說明](#中文說明)
+[English](#english)｜[中文](#中文)
 
-<a name="english"></a>
+## English
 
-## 📖 English Description
+HC-TXT-Reader is a privacy-first, dependency-free TXT novel reader delivered as one HTML file. Books are decoded and rendered locally; no book content is uploaded.
 
-HC-TXT-Reader is a lightweight, single-file HTML text novel reader designed for eye protection and distraction-free reading.
+### Features
 
-Unlike traditional web readers that require vertical scrolling, this reader features an adaptive pagination system that calculates the perfect amount of text for your screen size, allowing you to flip pages like a real e-book.
+- Adaptive page layout plus continuous scrolling mode.
+- Mouse, keyboard, on-screen controls, edge tap, and horizontal swipe navigation.
+- UTF-8, Big5, GB18030, UTF-16 LE, and UTF-16 BE decoding selection.
+- SHA-256 content identity when Web Crypto is available, with versioned local progress records.
+- High-contrast, dark, paper, and light themes; font size and line-height controls.
+- Automatic progress, manual bookmark, percentage jump, and full-text search.
+- Browser text-to-speech with automatic page turning and adjustable speech rate.
+- Dynamic viewport, safe-area support, visible keyboard focus, reduced-motion support, and accessible control names.
+- Single-file, offline operation without a server or third-party dependency.
 
-## ✨ Key Features
+### Usage
 
-- **🌐 Cross-Platform & Browser-Ready**: Works seamlessly on any device (PC, Mac, Tablet, Mobile) with a web browser. No need to install specific software or apps.
-- **⚡ Single File & Offline**: Pure HTML/CSS/JS. No installation, no backend, no dependencies. Just download and run.
-- **👁️ High Contrast Mode**: Defaults to a Windows High Contrast-style theme (Black background, Yellow text, Green borders) to reduce eye strain.
-- **📱 Adaptive Layout**: No scrollbars! The text automatically fits your window size.
-- **🔖 Dual Memory System**:
-  - **Auto-Save**: Automatically remembers your progress when you close the browser.
-  - **Manual Bookmarks**: Save specific pages to revisit later.
-- **🔍 Full-Text Search**: Quickly find keywords and jump to the context.
-- **🚀 Smart Navigation**:
-  - Use Arrow Keys or Spacebar to flip pages.
-  - Jump to a specific percentage by typing in the status bar.
-- **🎨 Customizable**: Adjust font size and brightness in real-time.
+1. Download `reader.html`.
+2. Open it in a current Chrome, Edge, Firefox, or Safari browser.
+3. Select **Open** and choose a `.txt` novel.
+4. If text is garbled, open Settings (⚙) and select the correct encoding.
 
-## 🚀 How to Use
+Progress and preferences are stored in the current browser. Clearing site data, using private browsing, changing browser/origin, or changing devices may remove or isolate that data. Speech voices and background TTS behavior depend on the browser and operating system.
 
-1. Download the `txt_reader.html` file (or whatever you named the final file).
-2. Open it in any modern web browser (Chrome, Edge, Firefox, Safari).
-3. Click "OPEN FILE" (開啟檔案) to load your .txt novel.
-4. Enjoy reading!
+### Controls
 
-## 🛠️ Tech Stack
+- `Left Arrow`: previous page.
+- `Right Arrow` / `Space`: next page.
+- Tap the left/right reading edge or swipe horizontally to turn pages.
+- Tap the center of the reading area to toggle controls.
+- Enter a percentage in the status bar to jump.
+- Use Settings to change encoding, theme, mode, line height, and speech rate.
 
-- HTML5
-- CSS3 (Flexbox, CSS Variables)
-- JavaScript (ES6+, FileReader API, LocalStorage)
+### Development
 
-<a name="中文說明"></a>
+No build is required. Run the regression tests with:
 
-## 📖 中文說明
+```bash
+node --test tests/reader-state.test.js
+```
 
-HC-TXT-Reader 是一個輕量級的單一檔案 HTML 純文字小說閱讀器，專為護眼與無干擾閱讀而設計。
+The approved roadmap and acceptance criteria are in [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md).
 
-不同於傳統網頁需要上下捲動，本閱讀器採用自適應分頁系統，能根據您的視窗大小自動計算最佳顯示字數，提供類似電子書的翻頁體驗。所有功能皆在單一 HTML 檔案中實現。
+## 中文
 
-## ✨ 主要功能
+HC-TXT-Reader 是一個重視隱私、無第三方依賴的單檔 TXT 小說閱讀器。小說只在使用者的瀏覽器中解碼與顯示，不會上傳正文。
 
-- **🌐 跨平台 & 瀏覽器即開即用**：支援所有主流平台（PC、Mac、平板、手機），只要有瀏覽器即可開啟閱讀，完全無需安裝任何額外軟體或 App。
-- **⚡ 單一檔案 & 離線執行**：純 HTML/CSS/JS 撰寫。免安裝、無依賴、無後端。下載即用。
-- **👁️ 高對比模式**：預設採用類似 Windows 高對比風格的主題（黑底、黃字、綠框），減少長時間閱讀的眼睛疲勞。
-- **📱 自適應排版**：無須捲動！內容會自動適應視窗大小進行分頁。
-- **🔖 雙重記憶系統**：
-  - **自動記憶**：關閉瀏覽器後，下次開啟同名檔案自動回到上次進度。
-  - **手動書籤**：可手動儲存特定頁面位置。
-- **🔍 全文搜尋**：快速搜尋關鍵字並跳轉至該段落。
-- **🚀 智慧導航**：
-  - 支援鍵盤 左右鍵 或 空白鍵 翻頁。
-  - 支援直接輸入百分比數字跳轉進度。
-- **🎨 自定義調整**：可即時調整字體大小與螢幕亮度。
+### 最新功能
 
-## 🚀 使用方法
+- **兩種閱讀模式**：自適應分頁及連續上下捲動。
+- **跨裝置操作**：支援畫面按鈕、鍵盤、閱讀區左右點擊及水平滑動翻頁。
+- **常見文字編碼**：可選 UTF-8、Big5、GB18030、UTF-16 LE 與 UTF-16 BE；亂碼時可直接切換，不必重新選檔。
+- **穩定書籍識別**：瀏覽器支援 Web Crypto 時，以 SHA-256 內容 fingerprint 區分同名小說，並使用版本化進度資料。
+- **閱讀外觀**：高對比、深色、紙張色與亮色主題，可調字級及行距。
+- **閱讀記憶**：自動保存進度、手動書籤、百分比跳轉及全文搜尋。
+- **語音朗讀**：使用瀏覽器 TTS，讀完目前頁面後自動翻頁，並可調整語速。
+- **行動裝置適配**：支援動態 viewport、瀏海／Home Indicator 安全區域與觸控手勢。
+- **無障礙基礎**：具控制項名稱、鍵盤焦點、狀態播報及 reduced-motion 支援。
+- **離線單檔**：沒有後端、安裝程序、建置步驟或外部套件。
 
-1. 下載 `txt_reader.html` 檔案。
-2. 使用任何現代瀏覽器（Chrome, Edge, Firefox, Safari）開啟該檔案。
-3. 點擊左上角的 「開啟檔案」 選擇您的 .txt 小說。
-4. 開始閱讀！
+### 使用方法
 
-## 🛠️ 技術棧
+1. 下載本 repo 的 `reader.html`。
+2. 使用最新版 Chrome、Edge、Firefox 或 Safari 開啟。
+3. 點選「開啟」，選擇 `.txt` 小說。
+4. 若文字出現亂碼，點選 ⚙，從「編碼」選擇正確格式。
 
-- HTML5
-- CSS3 (Flexbox, CSS Variables)
-- JavaScript (ES6+, FileReader API, LocalStorage)
+### 操作方式
+
+- `←`：上一頁。
+- `→` 或空白鍵：下一頁。
+- 點閱讀區左／右側，或左右滑動：翻頁。
+- 點閱讀區中央：顯示或隱藏控制介面。
+- 修改底部百分比：跳到指定閱讀進度。
+- ⚙ 設定：調整編碼、主題、分頁／捲動模式、行距與朗讀語速。
+
+### 資料與隱私
+
+- 小說內容只在本機瀏覽器處理。
+- 閱讀進度及偏好存在目前瀏覽器的儲存空間。
+- 清除網站資料、使用無痕模式、改用另一瀏覽器／網址或更換裝置時，資料可能不會保留或共用。
+- TTS 可用語音、背景朗讀及長文穩定性取決於瀏覽器和作業系統。
+- 尚未提供帳號或雲端同步；跨裝置匯出／匯入仍列於後續路線圖。
+
+### 開發與測試
+
+本專案不需建置。修改後執行：
+
+```bash
+node --test tests/reader-state.test.js
+```
+
+完整改善計畫、階段與驗收條件請參閱 [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md)。
